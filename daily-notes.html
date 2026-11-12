@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Dayline Notes</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+/* Layout: date + live clock pinned top-left, age counter strip beneath, composer, then a dated timeline of notes. */
+:root {
+  --bg: #eef1f5;
+  --surface: #ffffff;
+  --fg: #14202e;
+  --muted: #5b6b7d;
+  --line: #d6dde6;
+  --accent: #0f766e;
+  --accent-fg: #ffffff;
+  --accent-soft: #d9f0ed;
+  --danger: #b4380f;
+  --font-display: "Bricolage Grotesque", "Inter", system-ui, sans-serif;
+  --font-body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e141b; --surface: #161e28; --fg: #e6edf5; --muted: #93a3b5; --line: #263241;
+    --accent: #4fd1c5; --accent-fg: #06201d; --accent-soft: #12332f; --danger: #f08a5d;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e141b; --surface: #161e28; --fg: #e6edf5; --muted: #93a3b5; --line: #263241;
+  --accent: #4fd1c5; --accent-fg: #06201d; --accent-soft: #12332f; --danger: #f08a5d;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg);
+  font-family: var(--font-body); font-size: 15px; line-height: 1.55;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 56px;
+}
+.wrap { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Date header */
+.top { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px 24px; flex-wrap: wrap; }
+.date { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.date-num { font-family: var(--font-display); font-weight: 700; font-size: 64px; line-height: 0.9; letter-spacing: -0.03em; color: var(--accent); }
+.date-text { display: flex; flex-direction: column; gap: 2px; }
+.date-day { font-family: var(--font-display); font-weight: 700; font-size: 22px; line-height: 1.1; }
+.date-month { color: var(--muted); font-size: 14px; }
+.clock { font-family: var(--font-mono); font-weight: 500; font-size: 20px; margin-top: 6px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.clock b { color: var(--fg); font-weight: 700; }
+
+.year { display: flex; flex-direction: column; gap: 6px; min-width: 200px; flex: 1 1 200px; max-width: 280px; }
+.year-label { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--muted); }
+.bar { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; }
+.bar > i { display: block; height: 100%; width: 0; background: var(--accent); border-radius: 3px; }
+
+/* Age */
+.age { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.eyebrow { font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.age-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(84px, 1fr)); gap: 12px; }
+.age-cell { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.age-val { font-family: var(--font-mono); font-weight: 700; font-size: 30px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.age-cell.big .age-val { color: var(--accent); }
+.age-unit { font-size: 12px; color: var(--muted); }
+
+.next { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 10px; }
+.next b { color: var(--fg); font-weight: 600; }
+details.backup { border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; background: var(--surface); }
+details.backup summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--muted); }
+.backup-body { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+.btn2 { background: none; color: var(--accent); border: 1px solid var(--accent); padding: 8px 14px; font-weight: 600; }
+.btn2:hover { background: var(--accent-soft); }
+.status { font-size: 12px; color: var(--muted); }
+
+/* Composer */
+.composer { display: flex; flex-direction: column; gap: 10px; }
+textarea, input[type="search"] {
+  width: 100%; font: inherit; color: var(--fg); background: var(--surface);
+  border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px;
+}
+textarea { min-height: 96px; resize: vertical; }
+textarea::placeholder, input::placeholder { color: var(--muted); }
+.row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.hint { font-size: 12px; color: var(--muted); }
+button { font: inherit; cursor: pointer; border-radius: 8px; }
+.btn { background: var(--accent); color: var(--accent-fg); border: 0; padding: 10px 18px; font-weight: 600; }
+.btn:hover { filter: brightness(1.08); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Notes */
+.list-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.list-head input { max-width: 240px; padding: 8px 12px; }
+.group { display: flex; flex-direction: column; gap: 8px; }
+.group-title { display: flex; align-items: baseline; gap: 10px; font-family: var(--font-display); font-weight: 700; font-size: 17px; padding-top: 8px; }
+.group-title span { font-family: var(--font-body); font-weight: 400; font-size: 12px; color: var(--muted); }
+.note { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; display: flex; gap: 14px; }
+.note-time { font-family: var(--font-mono); font-size: 12px; color: var(--muted); padding-top: 3px; flex: none; font-variant-numeric: tabular-nums; }
+.note-body { flex: 1; min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.tag { display: inline-block; font-size: 11px; font-weight: 600; background: var(--accent-soft); color: var(--accent); padding: 1px 7px; border-radius: 4px; margin-right: 6px; }
+.del { background: none; border: 0; color: var(--muted); font-size: 12px; padding: 2px 6px; align-self: flex-start; }
+.del:hover { color: var(--danger); }
+.del.confirm { color: var(--danger); font-weight: 600; }
+.empty { border: 1px dashed var(--line); border-radius: 8px; padding: 24px; text-align: center; color: var(--muted); }
+
+@media (max-width: 480px) {
+  .date-num { font-size: 52px; }
+  .age-val { font-size: 26px; }
+  .note { flex-direction: column; gap: 6px; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .bar > i { transition: width 0.6s ease; }
+}
+</style>
+<style>:root{color-scheme:light}body{margin:0}[hidden]{display:none!important}</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="top">
+    <div>
+      <div class="date">
+        <div class="date-num" id="d-num">--</div>
+        <div class="date-text">
+          <div class="date-day" id="d-day">Loading</div>
+          <div class="date-month" id="d-month"></div>
+        </div>
+      </div>
+      <div class="clock" id="clock"></div>
+    </div>
+    <div class="year" aria-label="Progress of the year">
+      <div class="year-label"><span id="y-left"></span><span id="y-pct"></span></div>
+      <div class="bar"><i id="y-bar"></i></div>
+    </div>
+  </header>
+
+  <section class="age" aria-label="Age counter">
+    <div class="eyebrow">Age since 8 June 2006</div>
+    <div class="age-grid">
+      <div class="age-cell big"><span class="age-val" id="a-y">0</span><span class="age-unit">years</span></div>
+      <div class="age-cell big"><span class="age-val" id="a-m">0</span><span class="age-unit">months</span></div>
+      <div class="age-cell big"><span class="age-val" id="a-d">0</span><span class="age-unit">days</span></div>
+      <div class="age-cell"><span class="age-val" id="a-h">00</span><span class="age-unit">hours</span></div>
+      <div class="age-cell"><span class="age-val" id="a-n">00</span><span class="age-unit">minutes</span></div>
+      <div class="age-cell"><span class="age-val" id="a-s">00</span><span class="age-unit">seconds</span></div>
+    </div>
+    <div class="next" id="next-bday"></div>
+  </section>
+
+  <section class="composer">
+    <label class="eyebrow" for="note-input">New note for today</label>
+    <textarea id="note-input" placeholder="What happened today? What did you learn, finish or plan?"></textarea>
+    <div class="row">
+      <span class="hint">Ctrl + Enter to add. Notes save in this browser.</span>
+      <button class="btn" id="add" type="button" disabled>Add note</button>
+    </div>
+  </section>
+
+  <section>
+    <div class="list-head">
+      <div class="eyebrow" id="count">Notes</div>
+      <input type="search" id="search" placeholder="Search notes" aria-label="Search notes">
+    </div>
+    <div id="list" class="group" style="gap:16px;margin-top:8px"></div>
+  </section>
+
+  <details class="backup">
+    <summary>Backup and restore</summary>
+    <div class="backup-body">
+      <div class="hint">Notes live in this browser. Copy a backup and keep it somewhere safe. To restore on another device, paste it below and press Restore.</div>
+      <textarea id="backup-box" aria-label="Backup text" placeholder="Backup text appears here. Paste a backup here to restore."></textarea>
+      <div class="row">
+        <span class="status" id="backup-status"></span>
+        <span style="display:flex;gap:8px">
+          <button class="btn2" id="backup-btn" type="button">Copy backup</button>
+          <button class="btn2" id="restore-btn" type="button">Restore</button>
+        </span>
+      </div>
+    </div>
+  </details>
+</div>
+
+<script>
+(function () {
+  var BIRTH = { y: 2006, m: 5, d: 8 }; // 8 June 2006 (month is 0-based)
+  var KEY = "dayline.notes.v1";
+  var SEEDED = "dayline.seeded.v1";
+  var DAYS = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+  var MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  var $ = function (id) { return document.getElementById(id); };
+  var pad = function (n) { return n < 10 ? "0" + n : "" + n; };
+
+  /* ---------- storage ---------- */
+  var memory = [];
+  function load() {
+    try { var raw = localStorage.getItem(KEY); if (raw) return JSON.parse(raw); } catch (e) {}
+    return memory.slice();
+  }
+  function save(list) {
+    memory = list.slice();
+    try { localStorage.setItem(KEY, JSON.stringify(list)); } catch (e) {}
+  }
+  var notes = load();
+  var seeded = false;
+  try { seeded = !!localStorage.getItem(SEEDED); } catch (e) {}
+  if (!notes.length && !seeded) {
+    notes = [{ id: "ex1", ts: Date.now(), sample: true,
+      text: "Started my daily notes. Write what you did, what you learned and what comes next, then add it here." }];
+    save(notes);
+    try { localStorage.setItem(SEEDED, "1"); } catch (e) {}
+  }
+
+  /* ---------- date, clock, age ---------- */
+  function daysInMonth(y, m) { return new Date(y, m + 1, 0).getDate(); }
+  function tick() {
+    var n = new Date();
+    $("d-num").textContent = pad(n.getDate());
+    $("d-day").textContent = DAYS[n.getDay()];
+    $("d-month").textContent = MONTHS[n.getMonth()] + " " + n.getFullYear();
+    var h = n.getHours(), ap = h >= 12 ? "PM" : "AM", h12 = h % 12 || 12;
+    $("clock").innerHTML = "<b>" + pad(h12) + ":" + pad(n.getMinutes()) + ":" + pad(n.getSeconds()) + "</b> " + ap;
+
+    var start = new Date(n.getFullYear(), 0, 1), end = new Date(n.getFullYear() + 1, 0, 1);
+    var dayNo = Math.floor((new Date(n.getFullYear(), n.getMonth(), n.getDate()) - start) / 864e5) + 1;
+    var total = Math.round((end - start) / 864e5);
+    $("y-left").textContent = "Day " + dayNo + " of " + total + " · " + (total - dayNo) + " days left";
+    $("y-pct").textContent = Math.round((n - start) / (end - start) * 100) + "%";
+    $("y-bar").style.width = ((n - start) / (end - start) * 100).toFixed(2) + "%";
+
+    var y = n.getFullYear() - BIRTH.y, m = n.getMonth() - BIRTH.m, d = n.getDate() - BIRTH.d;
+    if (d < 0) { m--; var pm = n.getMonth() - 1, py = n.getFullYear(); if (pm < 0) { pm = 11; py--; } d += daysInMonth(py, pm); }
+    if (m < 0) { y--; m += 12; }
+    $("a-y").textContent = y; $("a-m").textContent = m; $("a-d").textContent = d;
+    $("a-h").textContent = pad(n.getHours()); $("a-n").textContent = pad(n.getMinutes()); $("a-s").textContent = pad(n.getSeconds());
+
+    var t0 = new Date(n.getFullYear(), n.getMonth(), n.getDate());
+    var nb = new Date(n.getFullYear(), BIRTH.m, BIRTH.d);
+    if (nb < t0) nb = new Date(n.getFullYear() + 1, BIRTH.m, BIRTH.d);
+    var left = Math.round((nb - t0) / 864e5), turning = nb.getFullYear() - BIRTH.y;
+    $("next-bday").innerHTML = left === 0
+      ? "<b>Happy birthday!</b> You turn " + turning + " today."
+      : "Next birthday: <b>" + BIRTH.d + " " + MONTHS[BIRTH.m] + " " + nb.getFullYear() + " (" + DAYS[nb.getDay()] + ")</b>, turning " + turning + " · " + left + " days left";
+  }
+
+  /* ---------- notes ---------- */
+  function dayKey(ts) { var d = new Date(ts); return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); }
+  function dayLabel(ts) {
+    var k = dayKey(ts), now = Date.now();
+    if (k === dayKey(now)) return "Today · " + fullDate(ts);
+    if (k === dayKey(now - 864e5)) return "Yesterday · " + fullDate(ts);
+    var d = new Date(ts);
+    return fullDate(ts);
+  }
+  function fullDate(ts) {
+    var d = new Date(ts);
+    return DAYS[d.getDay()] + ", " + d.getDate() + " " + MONTHS[d.getMonth()] + " " + d.getFullYear();
+  }
+  function timeLabel(ts) {
+    var d = new Date(ts), h = d.getHours();
+    return pad(h % 12 || 12) + ":" + pad(d.getMinutes()) + " " + (h >= 12 ? "PM" : "AM");
+  }
+  var pendingDelete = null;
+
+  function render() {
+    var q = $("search").value.trim().toLowerCase();
+    var shown = notes.filter(function (x) { return !q || x.text.toLowerCase().indexOf(q) !== -1; })
+      .sort(function (a, b) { return b.ts - a.ts; });
+    $("count").textContent = notes.length + (notes.length === 1 ? " note" : " notes");
+    var list = $("list");
+    list.textContent = "";
+    if (!shown.length) {
+      var e = document.createElement("div");
+      e.className = "empty";
+      e.textContent = q ? "No notes match your search." : "No notes yet. Write today's first note above.";
+      list.appendChild(e);
+      return;
+    }
+    var groups = {}, order = [];
+    shown.forEach(function (x) {
+      var k = dayKey(x.ts);
+      if (!groups[k]) { groups[k] = []; order.push(k); }
+      groups[k].push(x);
+    });
+    order.forEach(function (k) {
+      var items = groups[k];
+      var g = document.createElement("div"); g.className = "group";
+      var t = document.createElement("div"); t.className = "group-title";
+      t.textContent = dayLabel(items[0].ts);
+      var c = document.createElement("span"); c.textContent = items.length + (items.length === 1 ? " note" : " notes");
+      t.appendChild(c); g.appendChild(t);
+      items.forEach(function (x) {
+        var row = document.createElement("div"); row.className = "note";
+        var tm = document.createElement("div"); tm.className = "note-time"; tm.textContent = timeLabel(x.ts);
+        var body = document.createElement("div"); body.className = "note-body";
+        if (x.sample) { var tag = document.createElement("span"); tag.className = "tag"; tag.textContent = "Example"; body.appendChild(tag); }
+        body.appendChild(document.createTextNode(x.text));
+        var del = document.createElement("button"); del.type = "button"; del.className = "del";
+        var armed = pendingDelete === x.id;
+        del.textContent = armed ? "Confirm delete" : "Delete";
+        if (armed) del.classList.add("confirm");
+        del.addEventListener("click", function () {
+          if (pendingDelete === x.id) {
+            notes = notes.filter(function (n) { return n.id !== x.id; });
+            pendingDelete = null; save(notes);
+          } else { pendingDelete = x.id; }
+          render();
+        });
+        row.appendChild(tm); row.appendChild(body); row.appendChild(del);
+        g.appendChild(row);
+      });
+      list.appendChild(g);
+    });
+  }
+
+  function addNote() {
+    var text = $("note-input").value.trim();
+    if (!text) return;
+    notes.push({ id: "n" + Date.now() + Math.floor(Math.random() * 1000), ts: Date.now(), text: text });
+    save(notes);
+    $("note-input").value = "";
+    $("add").disabled = true;
+    pendingDelete = null;
+    render();
+    $("note-input").focus();
+  }
+
+  $("add").addEventListener("click", addNote);
+  $("note-input").addEventListener("input", function () { $("add").disabled = !this.value.trim(); });
+  $("note-input").addEventListener("keydown", function (e) { if ((e.ctrlKey || e.metaKey) && e.key === "Enter") addNote(); });
+  $("search").addEventListener("input", render);
+
+  function setStatus(s) { $("backup-status").textContent = s; }
+  $("backup-btn").addEventListener("click", function () {
+    var box = $("backup-box");
+    box.value = JSON.stringify(notes.filter(function (x) { return !x.sample; }));
+    box.focus(); box.select();
+    var done = function () { setStatus("Backup copied."); };
+    var fail = function () { setStatus("Backup selected. Copy it manually."); };
+    try { navigator.clipboard.writeText(box.value).then(done, fail); } catch (e) { fail(); }
+  });
+  $("restore-btn").addEventListener("click", function () {
+    var data;
+    try { data = JSON.parse($("backup-box").value); } catch (e) { setStatus("That is not a valid backup."); return; }
+    if (!Array.isArray(data)) { setStatus("That is not a valid backup."); return; }
+    var have = {}; notes.forEach(function (x) { have[x.id] = 1; });
+    var added = 0;
+    data.forEach(function (x) {
+      if (x && typeof x.text === "string" && typeof x.ts === "number" && x.id && !have[x.id]) {
+        notes.push({ id: String(x.id), ts: x.ts, text: x.text }); have[x.id] = 1; added++;
+      }
+    });
+    save(notes); render();
+    setStatus(added + (added === 1 ? " note restored." : " notes restored."));
+  });
+
+  tick(); render();
+  setInterval(tick, 1000);
+  // refresh day labels (Today/Yesterday) when the date rolls over
+  var lastKey = dayKey(Date.now());
+  setInterval(function () { var k = dayKey(Date.now()); if (k !== lastKey) { lastKey = k; render(); } }, 30000);
+})();
+</script>
+
+</body>
+</html>
